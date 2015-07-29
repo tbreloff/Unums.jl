@@ -5,11 +5,13 @@
 
 This is the basic representation of an unum (universal number) as described in detail in
 John L Gustafson's book 'The End of Error: Unum Computing':
-| signbit | exponent | fraction | ubit | exponent size - 1 | fraction size - 1 |
+
+`| signbit | exponent | fraction | ubit | exponent size - 1 | fraction size - 1 |`
 
 The first 3 fields are similar to floating point representation, but with flexible sizes.
 
 The ubit (uncertainty bit) signifies whether the number is an exact or uncertain:
+
   0 --> Exact
   1 --> Number u falls in the OPEN interval (u, u + ULP), where ULP is the distance to the next
         representable number.
