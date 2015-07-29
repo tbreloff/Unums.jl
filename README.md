@@ -12,7 +12,7 @@ The first 3 fields are similar to floating point representation, but with flexib
 
 The `ubit` (uncertainty bit) signifies whether the number is an exact or uncertain:
 
-  0 --> Exact 
+  0 --> Exact  
   1 --> Number u falls in the OPEN interval (u, u + ULP), where ULP is the distance to the next
         representable number.
 
