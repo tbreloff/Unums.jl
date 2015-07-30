@@ -38,7 +38,10 @@ end
 
 
 
+
 # ---------------------------------------------------------------------------------------
+
+abstract AbstractFixedUnum <: AbstractUnum
 
 doc"""
 This is the basic representation of an unum (universal number) as described in detail in
@@ -54,57 +57,90 @@ The ubit (uncertainty bit) signifies whether the number is an exact or uncertain
   1 --> Number u falls in the OPEN interval (u, u + ULP), where ULP is the distance to the next
         representable number.
 
-Unums can be expanded to fit into fixed widths, and can be supplemented with summary info, such as
-bit flags indicating NaN, Inf, negativity, etc which can help speed many operations.  I'll probably 
-attempt a FixedUnum type that fills 32/64/128 bits.
-"""
-immutable Unum{E, F, UINT <: Unsigned} <: AbstractUnum
-  bits::UINT
-end
-
-
-type UnumConstants{E, F, UINT <: Unsigned}
-  esizesize::UInt8  # E = size of "exponent size" field (NOT exponent size)
-  fsizesize::UInt8  # F = size of "fraction size" field (NOT fraction size)
-  esizemax::UInt16  # 2^esizesize
-  fsizemax::UInt16  # 2^fsizesize
-  tagsize::UInt16  # 1 + E + F
-  maxbits::UInt16   # 1 + esizemax + fsizemax + utagsize
-
-  ubitmask::UINT    # 1 << (utagsize - 1)
-  fsizemask::UINT   # (1 << F) - 1
-  efsizemask::UINT  # ubitmask - 1
-  esizemask::UINT   # efsizemask - fsizemask
-  tagmask::UINT     # ubitmask | efsizemask
-
-  # TODO: more constants
-end
-
-
-
-
-# TODO: impl
-
-
-# ---------------------------------------------------------------------------------------
-
-abstract AbstractFixedUnum <: AbstractUnum
-
-doc"""
-A fixed-width unum.  Parameters:
+Our implementation is a fixed-width unum.  Parameters:
   EBASE = base of exponent
       NOTE: may ditch this param:
             - defaults to 2?
             - want to easily implement decimals... but this may be tough to implement well
-  ESZ = number of bits in the exponent field
-  BITS = total number of bits in the format
+  ESZ = number of bits in the exponent field (fraction field fills all available space)
   UINT = the underlying storage type
+
+The format is as follows:
+
+| exponent | fraction | NaN? | Inf? | zero? | ubound? | negative? | signbit | ubit |
+
+Note that all the fields with a question mark are summary fields only (i.e. you can calculate those
+  fields with just exponent, fraction, signbit, and ubit)
+
+Defs:
+  exponent        = same as in floats
+  fraction        = same as in floats
+  NaN?            = boolean value, 1 when NaN
+  Inf?            = boolean value, 1 when +/-Inf
+  zero?           = boolean value, 1 when +/-0 AND it's exact
+  ubound?         = boolean value, 1 when this is the first unum in a ubound pair
+  negative?       = boolean value, 1 when value is: !isnan && signbit && (ubit || !iszero))
+  signbit         = boolean value, 0 for positive, 1 for negative
+  ubit            = boolean value, 0 for exact, 1 for inexact
 """
-immutable FixedUnum{EBASE, ESZ, BITS, UINT} <: AbstractFixedUnum
+immutable FixedUnum{EBASE, ESZ, UINT <: Unsigned} <: AbstractFixedUnum
   bits::UINT
 end
 
+const UTAG_MASK_SYMS = [:ubitmask, :signbitmask, :negbitmask, :uboundbitmask, :zerobitmask, :infbitmask, :nanbitmask]
+const UTAG_POS_SYMS = [:ubitpos, :signbitpos, :negbitpos, :uboundbitpos, :zerobitpos, :infbitpos, :nanbitpos]
 
+numbits{T}(::Type{T}) = sizeof(T) * 8
+
+# helper function to create a bit mask for Unsigned int UINT, where:
+#   there are "numones" 1's in the bits starting at "left", and 0's otherwise
+function createmask{UINT<:Unsigned}(::Type{UINT}, left::Int, numones::Int)
+  @assert numones >= 0
+  @assert left >= numones
+  @assert left <= numbits(UINT)
+  
+  o = one(UINT)
+  x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
+  x -= ((o << (left-numones)) - o)
+  x
+end
+
+# expect this to be called from a generated function, so we're being passed type params
+function buildConstants{T<:Unsigned}(EBASE::Int, ESZ::Int, UINT::Type{T})
+  d = Dict{Symbol, Any}()
+
+  # first some basic calcs
+  d[:nbits] = numbits(UINT)
+  d[:utagsize] = 7
+  d[:esize] = ESZ
+  d[:fsize] = d[:nbits] - d[:utagsize] - ESZ
+  @assert d[:fsize] > 0
+
+  # leftmost positions
+  d[:epos] = d[:nbits]
+  d[:fpos] = d[:nbits] - d[:esize]
+  for (i,s) in enumerate(UTAG_POS_SYMS)
+    d[s] = i
+  end
+
+  # masks
+  d[:emask] = createmask(UINT, d[:epos], d[:esize])
+  d[:fmask] = createmask(UINT, d[:fpos], d[:fsize])
+  for (i, s) in enumerate(UTAG_MASK_SYMS)
+    d[s] = createmask(UINT, d[UTAG_POS_SYMS[i]], 1)
+  end
+
+  d
+end
+
+
+
+@generated function Base.show{EBASE,ESZ,UINT}(io::IO, u::FixedUnum{EBASE,ESZ,UINT})
+  println(buildConstants(EBASE, ESZ, UINT))
+  quote
+    println(io, "hi:")
+  end
+end
 
 # TODO: impl
 
@@ -112,16 +148,18 @@ end
 # ---------------------------------------------------------------------------------------
 
 # some helpful aliases
+typealias Unum{ESZ, UINT} FixedUnum{2, ESZ, UINT}
+typealias DecimalUnum{ESZ, UINT} FixedUnum{10, ESZ, UINT}
 
-typealias FixedUnum16 FixedUnum{2, 3, 16, UInt16}
-typealias FixedUnum32 FixedUnum{2, 7, 32, UInt32}
-typealias FixedUnum64 FixedUnum{2, 16, 64, UInt64}
-typealias FixedUnum128 FixedUnum{2, 20, 128, UInt128}
+typealias Unum16 Unum{3, UInt16}
+typealias Unum32 Unum{7, UInt32}
+typealias Unum64 Unum{16, UInt64}
+typealias Unum128 Unum{20, UInt128}
 
-typealias DecimalUnum16 FixedUnum{10, 3, 16, UInt16}
-typealias DecimalUnum32 FixedUnum{10, 7, 32, UInt32}
-typealias DecimalUnum64 FixedUnum{10, 16, 64, UInt64}
-typealias DecimalUnum128 FixedUnum{10, 20, 128, UInt128}
+typealias DecimalUnum16 DecimalUnum{3, UInt16}
+typealias DecimalUnum32 DecimalUnum{7, UInt32}
+typealias DecimalUnum64 DecimalUnum{16, UInt64}
+typealias DecimalUnum128 DecimalUnum{20, UInt128}
 
 # ---------------------------------------------------------------------------------------
 
