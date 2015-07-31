@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/tbreloff/Unums.jl.svg?branch=master)](https://travis-ci.org/tbreloff/Unums.jl)
 
+### Experimental! Use at your own risk!
 
 This is the basic representation of an unum (universal number) as described in detail in
 John L Gustafson's book 'The End of Error: Unum Computing':
