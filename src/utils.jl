@@ -49,7 +49,15 @@ type UnumInfo{UINT<:Unsigned}
   infbitmask::UINT
   nanbitmask::UINT
 
-  # UnumInfo{T}(::Type{T}) = new()
+  # zero::UINT      # exact zero
+  # poszero::UINT   # inexact positive zero
+  # negzero::UINT   # inexact negative zero
+  # posinf::UINT    # exact positive inf
+  # neginf::UINT    # exact negative inf
+  # maxreal::UINT   # exact maximum positive real
+  # minreal::UINT   # exact minimum negative real
+  # nan::UINT       # this is "quiet NaN" from the book
+  # null::UINT      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
 end
 
 function Base.show{T}(io::IO, info::UnumInfo{T})
@@ -99,6 +107,8 @@ function unumConstants(EBASE::Int, ESZ::Int, UINT::DataType)
     info.infbitmask = createmask(UINT, info.infbitpos, 1)
     info.nanbitmask = createmask(UINT, info.nanbitpos, 1)
 
+    # TODO: create constants zero, etc
+
     info
   end
 end
@@ -108,21 +118,44 @@ end
 # this stores some key sizes and masks for doing float conversions
 type FloatInfo{F<:FloatingPoint, UINT<:Unsigned}
   nbits::Int
+  epos::Int
+  fpos::Int
   esize::Int
   fsize::Int
+  signbitmask::UINT
   emask::UINT
   fmask::UINT
+  floatType::DataType
+  uintType::DataType
 end
 
-FloatInfo(::Type{Float16}) = FloatInfo{Float16, UInt16}(Float16, UInt16, 16, 5, 11)
-FloatInfo(::Type{Float32}) = FloatInfo{Float32, UInt32}(Float32, UInt32, 32, 8, 24)
-FloatInfo(::Type{Float64}) = FloatInfo{Float64, UInt64}(Float64, UInt64, 64, 11, 53)
-# FloatInfo(::Type{Float128}) = FloatInfo{Float128, UInt128}(Float128, UInt128, 128, 15, 113)
+function Base.show{F,U}(io::IO, info::FloatInfo{F,U})
+  println("FloatInfo{$F,$U}:")
+  for fn in fieldnames(info)[1:5]
+    println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
+  end
+  for fn in fieldnames(info)[6:8]
+    println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
+  end
+end
 
-function FloatInfo{F,UINT}(::Type{F}, ::Type{UINT}, nbits::Int, esize::Int, fsize::Int)
-  FloatInfo{F,UINT}(nbits, esize, fsize,
+FloatInfo(::Type{Float16}) = FloatInfo(Float16, UInt16, 16, 5)
+FloatInfo(::Type{Float32}) = FloatInfo(Float32, UInt32, 32, 8)
+FloatInfo(::Type{Float64}) = FloatInfo(Float64, UInt64, 64, 11)
+# FloatInfo(::Type{Float128}) = FloatInfo(Float128, UInt128, 128, 15, 113)
+
+function FloatInfo{F,UINT}(::Type{F}, ::Type{UINT}, nbits::Int, esize::Int)
+  fsize = nbits - esize - 1
+  FloatInfo{F,UINT}(nbits,
+                    nbits-1,
+                    fsize,
+                    esize,
+                    fsize,
+                    createmask(UINT, nbits, 1),
                     createmask(UINT, nbits-1, esize),
-                    createmask(UINT, fsize, fsize))
+                    createmask(UINT, fsize, fsize),
+                    F,
+                    UINT)
 end
 
 # ---------------------------------------------------------------------------------------
