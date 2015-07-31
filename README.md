@@ -106,3 +106,6 @@ UnumInfo{UInt64}:
        nanbitmask 0000000000000000000000000000000000000000000000000000000001000000
 ```
 
+My thinking is that, by putting the specification into these cache objects and using staged functions, we can allow for
+total flexibility in the specifics of how a unum is represented, while at the same time providing extremely optimized
+methods for creating and operating on them.
