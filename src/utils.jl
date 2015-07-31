@@ -33,57 +33,63 @@ type UnumInfo{UINT<:Unsigned}
   fpos::Int
   ubitpos::Int
   signbitpos::Int
-  negbitpos::Int
-  uboundbitpos::Int
-  zerobitpos::Int
-  infbitpos::Int
-  nanbitpos::Int
+  # negbitpos::Int
+  # uboundbitpos::Int
+  # zerobitpos::Int
+  # infbitpos::Int
+  # nanbitpos::Int
 
   emask::UINT
   fmask::UINT
   ubitmask::UINT
   signbitmask::UINT
-  negbitmask::UINT
-  uboundbitmask::UINT
-  zerobitmask::UINT
-  infbitmask::UINT
-  nanbitmask::UINT
+  # negbitmask::UINT
+  # uboundbitmask::UINT
+  # zerobitmask::UINT
+  # infbitmask::UINT
+  # nanbitmask::UINT
 
-  # zero::UINT      # exact zero
-  # poszero::UINT   # inexact positive zero
-  # negzero::UINT   # inexact negative zero
-  # posinf::UINT    # exact positive inf
-  # neginf::UINT    # exact negative inf
-  # maxreal::UINT   # exact maximum positive real
-  # minreal::UINT   # exact minimum negative real
-  # nan::UINT       # this is "quiet NaN" from the book
-  # null::UINT      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
+  zero::UINT      # exact zero
+  poszero::UINT   # inexact positive zero
+  negzero::UINT   # inexact negative zero
+  posinf::UINT    # exact positive inf
+  neginf::UINT    # exact negative inf
+  mostpos::UINT   # exact maximum positive real
+  leastpos::UINT  # exact minimum positive real
+  mostneg::UINT   # exact minimum negative real
+  leastneg::UINT  # exact maximum negative real
+  nan::UINT       # this is "quiet NaN" from the book
+  null::UINT      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
 end
+
+
+const NUM_UNUMINFO_INTS = 9
+const NUM_UNUMINFO_MASKS = 15
 
 function Base.show{T}(io::IO, info::UnumInfo{T})
   println("UnumInfo{$T}:")
-  for fn in fieldnames(info)[1:14]
+  for fn in fieldnames(info)[1:numints]
     println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
   end
-  for fn in fieldnames(info)[15:end]
+  for fn in fieldnames(info)[numints:end]
     println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
   end
 end
 
-UnumInfo{T}(::Type{T}) = UnumInfo{T}(zeros(Int, 14)..., zeros(T, 9)...)
+UnumInfo{T}(::Type{T}) = UnumInfo{T}(zeros(Int, NUM_UNUMINFO_INTS)..., zeros(T, NUM_UNUMINFO_MASKS)...)
 
 
 # keep a cache for given parameter sets so we don't keep rebuilding the constants
 const unumConstCache = Dict{Tuple{Int,Int,DataType}, UnumInfo}()
 
 # expect this to be called from a generated function, so we're being passed type params
-function unumConstants(EBASE::Int, ESZ::Int, UINT::DataType)
-  get!(unumConstCache, (EBASE, ESZ, UINT)) do
+function unumConstants(B::Int, E::Int, UINT::DataType)
+  get!(unumConstCache, (B, E, UINT)) do
     info = UnumInfo(UINT)
-    info.base = EBASE
+    info.base = B
     info.nbits = numbits(UINT)
-    info.esize = ESZ
-    info.utagsize = 7
+    info.esize = E
+    info.utagsize = 2
     info.fsize = info.nbits - info.utagsize - info.esize
     @assert info.fsize > 0
 
@@ -91,23 +97,36 @@ function unumConstants(EBASE::Int, ESZ::Int, UINT::DataType)
     info.fpos = info.nbits - info.esize
     info.ubitpos = 1
     info.signbitpos = 2
-    info.negbitpos = 3
-    info.uboundbitpos = 4
-    info.zerobitpos = 5
-    info.infbitpos = 6
-    info.nanbitpos = 7
+    # info.negbitpos = 3
+    # info.uboundbitpos = 4
+    # info.zerobitpos = 5
+    # info.infbitpos = 6
+    # info.nanbitpos = 7
 
     info.emask = createmask(UINT, info.epos, info.esize)
     info.fmask = createmask(UINT, info.fpos, info.fsize)
     info.ubitmask = createmask(UINT, info.ubitpos, 1)
     info.signbitmask = createmask(UINT, info.signbitpos, 1)
-    info.negbitmask = createmask(UINT, info.negbitpos, 1)
-    info.uboundbitmask = createmask(UINT, info.uboundbitpos, 1)
-    info.zerobitmask = createmask(UINT, info.zerobitpos, 1)
-    info.infbitmask = createmask(UINT, info.infbitpos, 1)
-    info.nanbitmask = createmask(UINT, info.nanbitpos, 1)
+    # info.negbitmask = createmask(UINT, info.negbitpos, 1)
+    # info.uboundbitmask = createmask(UINT, info.uboundbitpos, 1)
+    # info.zerobitmask = createmask(UINT, info.zerobitpos, 1)
+    # info.infbitmask = createmask(UINT, info.infbitpos, 1)
+    # info.nanbitmask = createmask(UINT, info.nanbitpos, 1)
 
-    # TODO: create constants zero, etc
+    # create constants zero, etc
+    info.zero = zero(UINT)
+    info.poszero = info.zero | info.ubitmask
+    info.posinf = info.emask | info.fmask
+    info.mostpos = info.posinf - (info.ubitmask << info.utagsize)
+    info.leastpos = (info.ubitmask << info.utagsize)
+    info.nan = info.posinf | info.ubitmask
+
+    sgn = info.signbitmask
+    info.negzero = info.poszero | sgn
+    info.neginf = info.posinf | sgn
+    info.mostneg = info.mostpos | sgn
+    info.leastneg = info.leastpos | sgn
+    info.null = info.nan | sgn
 
     info
   end
@@ -163,19 +182,19 @@ end
 
 # this is the intended method of creating functions... get the constants from the parameters, 
 # then build a specialized (generated) function for this combination
-@generated function Base.show{EBASE,ESZ,UINT}(io::IO, u::FixedUnum{EBASE,ESZ,UINT})
-  c = unumConstants(EBASE, ESZ, UINT)
+@generated function Base.show{B,E,UINT}(io::IO, u::FixedUnum{B,E,UINT})
+  c = unumConstants(B, E, UINT)
 
-  efsz = ESZ + c.fsize
-  layout = [("exp", 1 : ESZ),
-            ("frac", (1 : c.fsize) + ESZ),
-            ("NaN?", ESZ + 1),
-            ("Inf?", ESZ + 2),
-            ("zero?", ESZ + 3),
-            ("ubound?", ESZ + 4),
-            ("neg?", ESZ + 5),
-            ("signbit", ESZ + 6),
-            ("ubit", ESZ + 7)]
+  efsz = E + c.fsize
+  layout = [("exp", 1 : E),
+            ("frac", (1 : c.fsize) + E),
+            # ("NaN?", efsz + 1),
+            # ("Inf?", efsz + 2),
+            # ("zero?", efsz + 3),
+            # ("ubound?", efsz + 4),
+            # ("neg?", efsz + 5),
+            ("signbit", efsz + 1),
+            ("ubit", efsz + 2)]
   info = [begin
             l1, l2 = map(length, x)
             maxlen = max(l1, l2)

@@ -49,16 +49,17 @@ The ubit (uncertainty bit) signifies whether the number is an exact or uncertain
         representable number.
 
 Our implementation is a fixed-width unum.  Parameters:
-  EBASE = base of exponent
+  B = base of exponent
       NOTE: may ditch this param:
             - defaults to 2?
             - want to easily implement decimals... but this may be tough to implement well
-  ESZ = number of bits in the exponent field (fraction field fills all available space)
+  E = number of bits in the exponent field (fraction field fills all available space)
   UINT = the underlying storage type
 
 The format is as follows:
 
-| exponent | fraction | NaN? | Inf? | zero? | ubound? | negative? | signbit | ubit |
+#| exponent | fraction | NaN? | Inf? | zero? | ubound? | negative? | signbit | ubit |
+| exponent | fraction | signbit | ubit |
 
 Note that all the fields with a question mark are summary fields only (i.e. you can calculate those
   fields with just exponent, fraction, signbit, and ubit)
@@ -66,31 +67,67 @@ Note that all the fields with a question mark are summary fields only (i.e. you 
 Defs:
   exponent        = same as in floats
   fraction        = same as in floats
-  NaN?            = boolean value, 1 when NaN
-  Inf?            = boolean value, 1 when +/-Inf
-  zero?           = boolean value, 1 when +/-0 AND it's exact
-  ubound?         = boolean value, 1 when this is the first unum in a ubound pair
-  negative?       = boolean value, 1 when value is: !isnan && signbit && (ubit || !iszero))
+  # NaN?            = boolean value, 1 when NaN
+  # Inf?            = boolean value, 1 when +/-Inf
+  # zero?           = boolean value, 1 when +/-0 AND it's exact
+  # ubound?         = boolean value, 1 when this is the first unum in a ubound pair
+  # negative?       = boolean value, 1 when value is: !isnan && signbit && (ubit || !iszero))
   signbit         = boolean value, 0 for positive, 1 for negative
   ubit            = boolean value, 0 for exact, 1 for inexact
 """
-immutable FixedUnum{EBASE, ESZ, UINT <: Unsigned} <: AbstractUnum
-  data::UINT
+
+# # note: I added the UnumData type so that you could potentially construct a unum from an Unsigned
+# # (before it wouldn't hit the proper conversion method)
+
+# immutable UnumData{B, E, UINT <: Unsigned}
+#   ival::UINT
+# end
+
+# immutable FixedUnum{B, E, UINT <: Unsigned} <: AbstractUnum
+#   data::UnumData{B,E,UINT}
+#   FixedUnum(d::UnumData) = new(d)
+#   # FixedUnum{B,E,UINT}(B, E, d::UnumData{B,E,UINT}) = new(d)
+# end
+
+abstract UData <: Unsigned
+bitstype 16 UData16 <: UData
+bitstype 32 UData32 <: UData
+bitstype 64 UData64 <: UData
+bitstype 128 UData128 <: UData
+
+# Base.convert{U<:UData}(::Type{U}, x) = reinterpret(U, x)
+Base.show(io::IO, data::UData) = show(io, bits(data))
+
+
+# WIP!! trying to replace the UINT with a distinct bitstype...
+immutable FixedUnum{B, E, U <: UData} <: AbstractUnum
+  data::U
 end
+
+# FixedUnum{B,E,U}(B::Int, E::Int, data::U) = FixedUnum{B,E,U}(d)
+
+# @generated function _u2i{B,E,U}(u::FixedUnum{B,E,U})
+#   c = unumConstants(B,E,U)
+#   :(reinterpret($(c.uintType), u.data))
+# end
+
+# _i2u{UINT<:Unsigned}(B::Int, E::Int, i::UINT) = FixedUnum(UData{B,E,UINT}(i))
+
+# note: see convert.jl for constructors
 
 
 # ---------------------------------------------------------------------------------------
 
 # some helpful aliases
-typealias Unum{ESZ, UINT} FixedUnum{2, ESZ, UINT}
-typealias DecimalUnum{ESZ, UINT} FixedUnum{10, ESZ, UINT}
+typealias Unum{E, U} FixedUnum{2, E, U}
+typealias DecimalUnum{E, U} FixedUnum{10, E, U}
 
-typealias Unum16 Unum{3, UInt16}
-typealias Unum32 Unum{7, UInt32}
-typealias Unum64 Unum{16, UInt64}
-typealias Unum128 Unum{20, UInt128}
+typealias Unum16 Unum{3, UData16}
+typealias Unum32 Unum{7, UData32}
+typealias Unum64 Unum{16, UData64}
+typealias Unum128 Unum{20, UData128}
 
-typealias DecimalUnum16 DecimalUnum{3, UInt16}
-typealias DecimalUnum32 DecimalUnum{7, UInt32}
-typealias DecimalUnum64 DecimalUnum{16, UInt64}
-typealias DecimalUnum128 DecimalUnum{20, UInt128}
+typealias DecimalUnum16 DecimalUnum{3, UData16}
+typealias DecimalUnum32 DecimalUnum{7, UData32}
+typealias DecimalUnum64 DecimalUnum{16, UData64}
+typealias DecimalUnum128 DecimalUnum{20, UData128}

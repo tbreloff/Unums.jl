@@ -1,11 +1,15 @@
 
+
 @generated function Base.zero{B,E,U}(::Type{FixedUnum{B,E,U}})
   c = unumConstants(B,E,U)
-  :($(c.zero))
+  :(_i2u($B,$E,$(c.zero)))
 end
 
-@generated function Base.convert{ESZ,UINT, FLOAT<:FloatingPoint}(::Type{Unum{ESZ,UINT}}, x::FLOAT)
-  c = unumConstants(2, ESZ, UINT)
+# convert any floating point number to a unum
+# lets worry about the base-2 case for now, then generalize later:
+@generated function call{E,UINT, FLOAT<:FloatingPoint}(::Type{Unum{E,UINT}}, x::FLOAT)
+  B = 2
+  c = unumConstants(B, E, UINT)
   f = FloatInfo(FLOAT)
 
   # this is the actual conversion function:
@@ -20,12 +24,13 @@ end
     if exponent == 0
       if fraction == 0
         # zero (exact)
-
+        return _i2u($B,$E,$(c.zero))
       end
     end
 
-    for x in (ival, exponent, fraction, sign)
-      println(bits(x))
-    end
+    # for x in (ival, exponent, fraction, sign)
+    #   println(bits(x))
+    # end
+
   end
 end
