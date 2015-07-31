@@ -84,8 +84,12 @@ Defs:
   ubit            = boolean value, 0 for exact, 1 for inexact
 """
 immutable FixedUnum{EBASE, ESZ, UINT <: Unsigned} <: AbstractFixedUnum
-  bits::UINT
+  data::UINT
 end
+
+
+
+# ---------------------------------------------------------------------------------------
 
 const UTAG_MASK_SYMS = [:ubitmask, :signbitmask, :negbitmask, :uboundbitmask, :zerobitmask, :infbitmask, :nanbitmask]
 const UTAG_POS_SYMS = [:ubitpos, :signbitpos, :negbitpos, :uboundbitpos, :zerobitpos, :infbitpos, :nanbitpos]
@@ -105,8 +109,16 @@ function createmask{UINT<:Unsigned}(::Type{UINT}, left::Int, numones::Int)
   x
 end
 
+# keep a cache for given parameter sets so we don't keep rebuilding the constants
+const constsCache = Dict{Tuple{Int,Int,DataType}, Dict{Symbol, Any}}()
+function getConstants(args...)
+  get!(constsCache, args) do
+    buildConstants(args...)
+  end
+end
+
 # expect this to be called from a generated function, so we're being passed type params
-function buildConstants{T<:Unsigned}(EBASE::Int, ESZ::Int, UINT::Type{T})
+function buildConstants(EBASE::Int, ESZ::Int, UINT::DataType)
   d = Dict{Symbol, Any}()
 
   # first some basic calcs
@@ -133,12 +145,46 @@ function buildConstants{T<:Unsigned}(EBASE::Int, ESZ::Int, UINT::Type{T})
   d
 end
 
+# ---------------------------------------------------------------------------------------
 
 
 @generated function Base.show{EBASE,ESZ,UINT}(io::IO, u::FixedUnum{EBASE,ESZ,UINT})
-  println(buildConstants(EBASE, ESZ, UINT))
+  d = getConstants(EBASE, ESZ, UINT)
+
+  efsz = ESZ + d[:fsize]
+  layout = [("exp", 1 : ESZ),
+            ("frac", (1 : d[:fsize]) + ESZ),
+            ("NaN?", ESZ + 1),
+            ("Inf?", ESZ + 2),
+            ("zero?", ESZ + 3),
+            ("ubound?", ESZ + 4),
+            ("neg?", ESZ + 5),
+            ("signbit", ESZ + 6),
+            ("ubit", ESZ + 7)]
+  info = [begin
+            l1, l2 = map(length, x)
+            maxlen = max(l1, l2)
+            (maxlen-l1, maxlen-l2)
+          end for (i,x) in enumerate(layout)]
+
   quote
-    println(io, "hi:")
+    bs = bits(u.data)
+    layout = $layout
+    info = $info
+
+    j = 2
+    print(io, "| ")
+    for i in 1:length(layout)
+      lpad, extra = divrem(info[i][j], 2)
+      print(io, " "^lpad, bs[layout[i][j]], " "^(lpad+extra), " | ")
+    end
+
+    j = 1
+    print(io, "\n| ")
+    for i in 1:length(layout)
+      lpad, extra = divrem(info[i][j], 2)
+      print(io, " "^lpad, layout[i][j], " "^(lpad+extra), " | ")
+    end
   end
 end
 
