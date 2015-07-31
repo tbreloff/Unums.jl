@@ -9,7 +9,7 @@ John L Gustafson's book 'The End of Error: Unum Computing':
 
 `| signbit | exponent | fraction | ubit | exponent size - 1 | fraction size - 1 |`
 
-The first 3 fields are similar to floating point representation, but with flexible sizes.
+The first 3 fields are similar to floating point representation, but allowing the exponent and fraction to have flexible sizes.
 
 The `ubit` (uncertainty bit) signifies whether the number is an exact or uncertain:
 
