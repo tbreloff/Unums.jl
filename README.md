@@ -36,7 +36,12 @@ The format is as follows:
 
 `| exponent | fraction | NaN? | Inf? | zero? | ubound? | negative? | signbit | ubit |`
 
-Note that all the fields with a question mark are summary fields only (i.e. you can calculate those fields with just exponent, fraction, signbit, and ubit).
+There are 3 goals with this design:
+- Use current hardware optimizations where possible.  Fill out standard bit sizes (16/32/64/128) and make use of optimized UInt operations as much as possible.
+- Allow for extreme flexibility.  Some problems need a big exponent, others a big fraction, some both.
+- Underlying methods should be minimal and fast.  If there's something we can hardcode, we should.  Staged functions are perfect for this.
+
+NOTE: all the fields with a question mark are summary fields only (i.e. you can calculate those fields with just exponent, fraction, signbit, and ubit).
  They may not have any value in a software implementation as comparing bit-by-bit doesn't save very much, but it's worth a try.
 
 Defs:
