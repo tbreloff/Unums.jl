@@ -22,6 +22,7 @@ import Base: isapprox, isequal, isfinite, isinf, isinteger,
 
 include("types.jl")
 include("utils.jl")
+include("convert.jl")
 
 # ---------------------------------------------------------------------------------------
 

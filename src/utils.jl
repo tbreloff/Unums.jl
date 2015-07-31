@@ -105,9 +105,25 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-type FloatInfo{F<:FloatingPoint}
+# this stores some key sizes and masks for doing float conversions
+type FloatInfo{F<:FloatingPoint, UINT<:Unsigned}
+  nbits::Int
+  esize::Int
+  fsize::Int
+  emask::UINT
+  fmask::UINT
 end
 
+FloatInfo(::Type{Float16}) = FloatInfo{Float16, UInt16}(Float16, UInt16, 16, 5, 11)
+FloatInfo(::Type{Float32}) = FloatInfo{Float32, UInt32}(Float32, UInt32, 32, 8, 24)
+FloatInfo(::Type{Float64}) = FloatInfo{Float64, UInt64}(Float64, UInt64, 64, 11, 53)
+# FloatInfo(::Type{Float128}) = FloatInfo{Float128, UInt128}(Float128, UInt128, 128, 15, 113)
+
+function FloatInfo{F,UINT}(::Type{F}, ::Type{UINT}, nbits::Int, esize::Int, fsize::Int)
+  FloatInfo{F,UINT}(nbits, esize, fsize,
+                    createmask(UINT, nbits-1, esize),
+                    createmask(UINT, fsize, fsize))
+end
 
 # ---------------------------------------------------------------------------------------
 
