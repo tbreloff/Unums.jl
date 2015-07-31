@@ -22,7 +22,9 @@ bit flags indicating NaN, Inf, negativity, etc which can help speed many operati
 attempt a FixedUnum type that fills 32/64/128 bits.
 
 
-Our implementation is a fixed-width unum (`FixedUnum`).  Parameters:
+## Current implementation
+
+I'm attempting to implement a fixed-width unum (`FixedUnum`).  Parameters:
 - EBASE = base of exponent
       NOTE: may ditch this param:
             - defaults to 2?
