@@ -48,7 +48,7 @@ A `FixedUnum64` is always 64 bits, but the internal meaning of the bits may chan
 
 The format is as follows:
 
-`| signbit | unused space | exponent | fraction | ubit | esizesize | fsizesize |`
+`| signbit | unused space | exponent | fraction | ubit | esize - 1 | fsize - 1 |`
 
 There are 3 goals with this design:
 - Use current hardware optimizations where possible.  Fill out standard bit sizes (16/32/64/128) and make use of optimized UInt operations as much as possible.
@@ -61,6 +61,8 @@ Defs:
   exponent        = same as in floats
   fraction        = same as in floats
   ubit            = boolean value, 0 for exact, 1 for inexact
+  esize           = size of the exponent field
+  fsize           = size of the fraction field
   esizesize       = total size of the "exponent size" field... allows up to (2^ESS + 1) bits in the exponent
   fsizesize       = total size of the "fraction size" field... allows up to (2^FSS + 1) bits in the fraction
 ```
@@ -70,8 +72,14 @@ Calling `show` will give you a structured bits layout:
 ```
 julia> c.posinf
 bits: 0000001111111111111111111111111111111111111111111111110111111111
-|    0    | 1111111111111111 | 11111111111111111111111111111111 |  0   |   1111    |   11111   | 
-| signbit |       exp        |               frac               | ubit | esizesize | fsizesize | 
+|    0    | 1111111111111111 | 11111111111111111111111111111111 |  0   |  1111   |  11111  | 
+| signbit |       exp        |               frac               | ubit | esize-1 | fsize-1 | 
+
+julia> c.mostneg
+bits: 1000001111111111111111111111111111111111111111111111100111111111
+|    1    | 1111111111111111 | 11111111111111111111111111111110 |  0   |  1111   |  11111  | 
+| signbit |       exp        |               frac               | ubit | esize-1 | fsize-1 | 
+
 ```
 
 Many functions will be staged using the `@generated` macro and cached constants specific to a given set of Unum parameters:

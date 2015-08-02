@@ -195,7 +195,7 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-const USPEC_FIELDS = ["signbit", "exp", "frac", "ubit", "esizesize", "fsizesize"]
+const USPEC_FIELDS = ["signbit", "exp", "frac", "ubit", "esize-1", "fsize-1"]
 const USPEC_LENGTHS = map(length, USPEC_FIELDS)
 
 function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
