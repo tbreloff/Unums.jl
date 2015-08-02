@@ -2,27 +2,39 @@
 # this section is pretty important... I create a type with key constants specific to a certain 
 # parameter set which defines a Unum.  
 
-numbits{T}(::Type{T}) = sizeof(T) * 8
+numbits{U}(::Type{U}) = sizeof(U) * 8
+Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
+
+# TODO: generate these
+getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
+|{U<:FixedUnum64}(u1::U, u2::U) = box(U, or_int(unbox(U,u1), unbox(U,u2)))
+<<{U<:FixedUnum64, I<:Integer}(u::U, i::I) = box(U, shl_int(unbox(U,u), unbox(I,i)))
 
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
-function createmask{UINT<:Unsigned}(::Type{UINT}, left::Int, numones::Int)
+function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
   @assert numones >= 0
   @assert left >= numones
-  @assert left <= numbits(UINT)
+  @assert left <= numbits(U)
   
+  UINT = getUINT(U)
   o = one(UINT)
+  println("$U $left $numones $UINT $o")
   x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
+  println(bits(x))
   x -= ((o << (left-numones)) - o)
-  x
+  println(bits(x))
+  reinterpret(U, x)
 end
+
+
 
 # ---------------------------------------------------------------------------------------
 
 # keep a cache for given parameter sets so we don't keep rebuilding the constants
 # const unumConstCache = Dict{Tuple{Int,Int,DataType}, Dict{Symbol, Any}}()
 
-type UnumInfo{UINT<:Unsigned}
+type UnumInfo{U<:AbstractUnum}
   base::Int
   nbits::Int
   esize::Int
@@ -39,27 +51,29 @@ type UnumInfo{UINT<:Unsigned}
   # infbitpos::Int
   # nanbitpos::Int
 
-  emask::UINT
-  fmask::UINT
-  ubitmask::UINT
-  signbitmask::UINT
-  # negbitmask::UINT
-  # uboundbitmask::UINT
-  # zerobitmask::UINT
-  # infbitmask::UINT
-  # nanbitmask::UINT
+  emask::U
+  fmask::U
+  ubitmask::U
+  signbitmask::U
+  # negbitmask::U
+  # uboundbitmask::U
+  # zerobitmask::U
+  # infbitmask::U
+  # nanbitmask::U
 
-  zero::UINT      # exact zero
-  poszero::UINT   # inexact positive zero
-  negzero::UINT   # inexact negative zero
-  posinf::UINT    # exact positive inf
-  neginf::UINT    # exact negative inf
-  mostpos::UINT   # exact maximum positive real
-  leastpos::UINT  # exact minimum positive real
-  mostneg::UINT   # exact minimum negative real
-  leastneg::UINT  # exact maximum negative real
-  nan::UINT       # this is "quiet NaN" from the book
-  null::UINT      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
+  zero::U      # exact zero
+  poszero::U   # inexact positive zero
+  negzero::U   # inexact negative zero
+  posinf::U    # exact positive inf
+  neginf::U    # exact negative inf
+  mostpos::U   # exact maximum positive real
+  leastpos::U  # exact minimum positive real
+  mostneg::U   # exact minimum negative real
+  leastneg::U  # exact maximum negative real
+  nan::U       # this is "quiet NaN" from the book
+  null::U      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
+
+  UnumInfo{U}(::Type{U}) = new()
 end
 
 
@@ -76,18 +90,18 @@ function Base.show{T}(io::IO, info::UnumInfo{T})
   end
 end
 
-UnumInfo{T}(::Type{T}) = UnumInfo{T}(zeros(Int, NUM_UNUMINFO_INTS)..., zeros(T, NUM_UNUMINFO_MASKS)...)
+# UnumInfo{T}(::Type{T}) = UnumInfo{T}(zeros(Int, NUM_UNUMINFO_INTS)..., zeros(T, NUM_UNUMINFO_MASKS)...)
 
 
 # keep a cache for given parameter sets so we don't keep rebuilding the constants
-const unumConstCache = Dict{Tuple{Int,Int,DataType}, UnumInfo}()
+const unumConstCache = Dict{DataType, UnumInfo}()
 
 # expect this to be called from a generated function, so we're being passed type params
-function unumConstants(B::Int, E::Int, UINT::DataType)
-  get!(unumConstCache, (B, E, UINT)) do
-    info = UnumInfo(UINT)
+function unumConstants(U::DataType)
+  get!(unumConstCache, U) do
+    info = UnumInfo(U)
     info.base = B
-    info.nbits = numbits(UINT)
+    info.nbits = numbits(U)
     info.esize = E
     info.utagsize = 2
     info.fsize = info.nbits - info.utagsize - info.esize
@@ -102,19 +116,22 @@ function unumConstants(B::Int, E::Int, UINT::DataType)
     # info.zerobitpos = 5
     # info.infbitpos = 6
     # info.nanbitpos = 7
+    # println("1: ", info)
 
-    info.emask = createmask(UINT, info.epos, info.esize)
-    info.fmask = createmask(UINT, info.fpos, info.fsize)
-    info.ubitmask = createmask(UINT, info.ubitpos, 1)
-    info.signbitmask = createmask(UINT, info.signbitpos, 1)
-    # info.negbitmask = createmask(UINT, info.negbitpos, 1)
-    # info.uboundbitmask = createmask(UINT, info.uboundbitpos, 1)
-    # info.zerobitmask = createmask(UINT, info.zerobitpos, 1)
-    # info.infbitmask = createmask(UINT, info.infbitpos, 1)
-    # info.nanbitmask = createmask(UINT, info.nanbitpos, 1)
+    info.emask = createmask(U, info.epos, info.esize)
+    info.fmask = createmask(U, info.fpos, info.fsize)
+    info.ubitmask = createmask(U, info.ubitpos, 1)
+    info.signbitmask = createmask(U, info.signbitpos, 1)
+    # info.negbitmask = createmask(U, info.negbitpos, 1)
+    # info.uboundbitmask = createmask(U, info.uboundbitpos, 1)
+    # info.zerobitmask = createmask(U, info.zerobitpos, 1)
+    # info.infbitmask = createmask(U, info.infbitpos, 1)
+    # info.nanbitmask = createmask(U, info.nanbitpos, 1)
+    # println("2: ", info)
 
     # create constants zero, etc
-    info.zero = zero(UINT)
+    UINT = getUINT(U)
+    info.zero = reinterpret(U, zero(UINT))
     info.poszero = info.zero | info.ubitmask
     info.posinf = info.emask | info.fmask
     info.mostpos = info.posinf - (info.ubitmask << info.utagsize)
@@ -134,90 +151,77 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-# this stores some key sizes and masks for doing float conversions
-type FloatInfo{F<:FloatingPoint, UINT<:Unsigned}
-  nbits::Int
-  epos::Int
-  fpos::Int
-  esize::Int
-  fsize::Int
-  signbitmask::UINT
-  emask::UINT
-  fmask::UINT
-  floatType::DataType
-  uintType::DataType
-end
+# # this stores some key sizes and masks for doing float conversions
+# type FloatInfo{F<:FloatingPoint, U<:AbstractUnum}
+#   nbits::Int
+#   epos::Int
+#   fpos::Int
+#   esize::Int
+#   fsize::Int
+#   signbitmask::U
+#   emask::U
+#   fmask::U
+#   fType::DataType
+#   uType::DataType
+# end
 
-function Base.show{F,U}(io::IO, info::FloatInfo{F,U})
-  println("FloatInfo{$F,$U}:")
-  for fn in fieldnames(info)[1:5]
-    println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
-  end
-  for fn in fieldnames(info)[6:8]
-    println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
-  end
-end
+# function Base.show{F,U}(io::IO, info::FloatInfo{F,U})
+#   println("FloatInfo{$F,$U}:")
+#   for fn in fieldnames(info)[1:5]
+#     println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
+#   end
+#   for fn in fieldnames(info)[6:8]
+#     println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
+#   end
+# end
 
-FloatInfo(::Type{Float16}) = FloatInfo(Float16, UInt16, 16, 5)
-FloatInfo(::Type{Float32}) = FloatInfo(Float32, UInt32, 32, 8)
-FloatInfo(::Type{Float64}) = FloatInfo(Float64, UInt64, 64, 11)
-# FloatInfo(::Type{Float128}) = FloatInfo(Float128, UInt128, 128, 15, 113)
+# FloatInfo(::Type{Float16}) = FloatInfo(Float16, UInt16, 16, 5)
+# FloatInfo(::Type{Float32}) = FloatInfo(Float32, UInt32, 32, 8)
+# FloatInfo(::Type{Float64}) = FloatInfo(Float64, UInt64, 64, 11)
+# # FloatInfo(::Type{Float128}) = FloatInfo(Float128, UInt128, 128, 15, 113)
 
-function FloatInfo{F,UINT}(::Type{F}, ::Type{UINT}, nbits::Int, esize::Int)
-  fsize = nbits - esize - 1
-  FloatInfo{F,UINT}(nbits,
-                    nbits-1,
-                    fsize,
-                    esize,
-                    fsize,
-                    createmask(UINT, nbits, 1),
-                    createmask(UINT, nbits-1, esize),
-                    createmask(UINT, fsize, fsize),
-                    F,
-                    UINT)
-end
+# function FloatInfo{F,U}(::Type{F}, ::Type{U}, nbits::Int, esize::Int)
+#   fsize = nbits - esize - 1
+#   FloatInfo{F,U}(nbits,
+#                     nbits-1,
+#                     fsize,
+#                     esize,
+#                     fsize,
+#                     createmask(U, nbits, 1),
+#                     createmask(U, nbits-1, esize),
+#                     createmask(U, fsize, fsize),
+#                     F,
+#                     U)
+# end
 
 # ---------------------------------------------------------------------------------------
 
+const USPEC_FIELDS = ["exp", "frac", "signbit", "ubit"]
+const USPEC_LENGTHS = map(length, USPEC_FIELDS)
 
-# this is the intended method of creating functions... get the constants from the parameters, 
-# then build a specialized (generated) function for this combination
-@generated function Base.show{B,E,UINT}(io::IO, u::FixedUnum{B,E,UINT})
-  c = unumConstants(B, E, UINT)
+function Base.show{B,E}(io::IO, u::AbstractUnum{B,E})
+  b = bits(u)
+  println(io, "bits: ", b)
 
-  efsz = E + c.fsize
-  layout = [("exp", 1 : E),
-            ("frac", (1 : c.fsize) + E),
-            # ("NaN?", efsz + 1),
-            # ("Inf?", efsz + 2),
-            # ("zero?", efsz + 3),
-            # ("ubound?", efsz + 4),
-            # ("neg?", efsz + 5),
-            ("signbit", efsz + 1),
-            ("ubit", efsz + 2)]
-  info = [begin
-            l1, l2 = map(length, x)
-            maxlen = max(l1, l2)
-            (maxlen-l1, maxlen-l2)
-          end for (i,x) in enumerate(layout)]
+  nbits = numbits(typeof(u))
+  fsize = nbits - E - 2
+  flens = [E, fsize, 1, 1]
+  maxlens = map(max, flens, USPEC_LENGTHS)
 
-  quote
-    bs = bits(u.data)
-    layout = $layout
-    info = $info
+  print(io, "| ")
+  pos = 1
+  for (i,l) in enumerate(flens)
+    lpad, extra = divrem(maxlens[i]-l, 2)
+    print(io, " "^lpad, b[pos:pos+l-1], " "^(lpad+extra), " | ")
+    pos += l
+  end
 
-    j = 2
-    print(io, "| ")
-    for i in 1:length(layout)
-      lpad, extra = divrem(info[i][j], 2)
-      print(io, " "^lpad, bs[layout[i][j]], " "^(lpad+extra), " | ")
-    end
-
-    j = 1
-    print(io, "\n| ")
-    for i in 1:length(layout)
-      lpad, extra = divrem(info[i][j], 2)
-      print(io, " "^lpad, layout[i][j], " "^(lpad+extra), " | ")
-    end
+  print(io, "\n| ")
+  pos = 1
+  for (i,l) in enumerate(USPEC_LENGTHS)
+    lpad, extra = divrem(maxlens[i]-l, 2)
+    print(io, " "^lpad, USPEC_FIELDS[i], " "^(lpad+extra), " | ")
+    pos += l
   end
 end
+
