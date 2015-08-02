@@ -1,7 +1,7 @@
 
 # define the interface that unums should follow:
 
-abstract AbstractUnum{B,E} <: Real
+abstract AbstractUnum{B,ESS,FSS} <: Real
 
 isnumber(u::AbstractUnum) = true
 isreal(u::AbstractUnum) = true
@@ -34,29 +34,13 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-# B is the base of the exponent, E is the number of bits in the exponent
-bitstype 64 FixedUnum64{B,E} <: AbstractUnum{B,E}
-typealias BinaryUnum64{E}   FixedUnum64{2, E}
-typealias DecimalUnum64{E}  FixedUnum64{10, E}
-typealias IntUnum64         FixedUnum64{2,1}
-typealias Unum64            BinaryUnum64{15}
-
-# # WIP!! trying to replace the UINT with a distinct bitstype...
-# immutable FixedUnum{B, E, U <: UData} <: AbstractUnum
-#   data::U
-# end
-
-# FixedUnum{B,E,U}(B::Int, E::Int, data::U) = FixedUnum{B,E,U}(d)
-
-# @generated function _u2i{B,E,U}(u::FixedUnum{B,E,U})
-#   c = unumConstants(B,E,U)
-#   :(reinterpret($(c.uintType), u.data))
-# end
-
-# _i2u{UINT<:Unsigned}(B::Int, E::Int, i::UINT) = FixedUnum(UData{B,E,UINT}(i))
-
-# note: see convert.jl for constructors
-
+# B is the base of the exponent
+# ESS is the "exponent size size"
+# FSS is the "fraction size size"
+bitstype 64 FixedUnum64{B,ESS,FSS} <: AbstractUnum{B,ESS,FSS}
+typealias BinaryUnum64{ESS,FSS}   FixedUnum64{2,ESS,FSS}
+typealias DecimalUnum64{ESS,FSS}  FixedUnum64{10,ESS,FSS}
+typealias Unum64                  BinaryUnum64{4,5}
 
 # ---------------------------------------------------------------------------------------
 
@@ -76,7 +60,3 @@ typealias Unum64            BinaryUnum64{15}
 # typealias DecimalUnum64 DecimalUnum{16, UData64}
 # typealias DecimalUnum128 DecimalUnum{20, UData128}
 
-# TODO: a very cool property when E==1: the unums track the exact set of integers,
-#       plus the open ranges, infs, and nans.  They are a nice superset of signed
-#       integers, and could allow for straightforward conversion between IntUnum/Integer
-# typealias IntUnum16 Unum16{1}

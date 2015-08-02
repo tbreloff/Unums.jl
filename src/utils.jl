@@ -21,11 +21,8 @@ function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
   
   UINT = getUINT(U)
   o = one(UINT)
-  # println("$U $left $numones $UINT $o")
   x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
-  # println(bits(x))
   x -= ((o << (left-numones)) - o)
-  # println(bits(x))
   reinterpret(U, x)
 end
 
@@ -41,27 +38,25 @@ type UnumInfo{U<:AbstractUnum}
   nbits::Int
   esize::Int
   fsize::Int
+  esizesize::Int
+  fsizesize::Int
   utagsize::Int
   
+  signbitpos::Int
   epos::Int
   fpos::Int
   ubitpos::Int
-  signbitpos::Int
-  # negbitpos::Int
-  # uboundbitpos::Int
-  # zerobitpos::Int
-  # infbitpos::Int
-  # nanbitpos::Int
+  esizepos::Int
+  fsizepos::Int
 
+  signbitmask::U
   emask::U
   fmask::U
   ubitmask::U
-  signbitmask::U
-  # negbitmask::U
-  # uboundbitmask::U
-  # zerobitmask::U
-  # infbitmask::U
-  # nanbitmask::U
+  esizemask::U
+  fsizemask::U
+  efsizemask::U
+  utagmask::U
 
   zero::U      # exact zero
   poszero::U   # inexact positive zero
@@ -79,8 +74,8 @@ type UnumInfo{U<:AbstractUnum}
 end
 
 
-const NUM_UNUMINFO_INTS = 9
-const NUM_UNUMINFO_MASKS = 15
+const NUM_UNUMINFO_INTS = 13
+const NUM_UNUMINFO_MASKS = 19
 
 function Base.show{T}(io::IO, info::UnumInfo{T})
   println("UnumInfo{$T}:")
@@ -101,46 +96,45 @@ const unumConstCache = Dict{DataType, UnumInfo}()
 # expect this to be called from a generated function, so we're being passed type params
 function unumConstants(U::DataType)
   get!(unumConstCache, U) do
-    # info = UnumInfo(U)
     info = UnumInfo{U}()
+    B, ESS, FSS = U.parameters
+    @assert ESS >= 0
+    @assert FSS >= 0
+    N = numbits(U)
 
-    B, E = U.parameters
     info.base = B
-    info.nbits = numbits(U)
-    info.esize = E
-    info.utagsize = 2
-    info.fsize = info.nbits - info.utagsize - info.esize
+    info.nbits = N
+    info.esize = 2 ^ ESS
+    info.fsize = 2 ^ FSS
+    info.esizesize = ESS
+    info.fsizesize = FSS
+    info.utagsize = 1 + ESS + FSS
+    @assert info.esize > 0
     @assert info.fsize > 0
 
-    info.epos = info.nbits
-    info.fpos = info.nbits - info.esize
-    info.ubitpos = 1
-    info.signbitpos = 2
-    # info.negbitpos = 3
-    # info.uboundbitpos = 4
-    # info.zerobitpos = 5
-    # info.infbitpos = 6
-    # info.nanbitpos = 7
-    # println("1: ", info)
+    info.signbitpos = info.nbits
+    info.fpos = info.utagsize + info.fsize
+    info.epos = info.fpos + info.esize
+    info.ubitpos = info.utagsize
+    info.esizepos = ESS + FSS
+    info.fsizepos = FSS
 
+    info.signbitmask = createmask(U, info.signbitpos, 1)
     info.emask = createmask(U, info.epos, info.esize)
     info.fmask = createmask(U, info.fpos, info.fsize)
     info.ubitmask = createmask(U, info.ubitpos, 1)
-    info.signbitmask = createmask(U, info.signbitpos, 1)
-    # info.negbitmask = createmask(U, info.negbitpos, 1)
-    # info.uboundbitmask = createmask(U, info.uboundbitpos, 1)
-    # info.zerobitmask = createmask(U, info.zerobitpos, 1)
-    # info.infbitmask = createmask(U, info.infbitpos, 1)
-    # info.nanbitmask = createmask(U, info.nanbitpos, 1)
-    # println("2: ", info)
+    info.esizemask = createmask(U, info.esizepos, ESS)
+    info.fsizemask = createmask(U, info.fsizepos, FSS)
+    info.efsizemask = info.esizemask | info.fsizemask
+    info.utagmask = info.ubitmask | info.efsizemask
 
     # create constants zero, etc
     UINT = getUINT(U)
     info.zero = reinterpret(U, zero(UINT))
     info.poszero = info.zero | info.ubitmask
-    info.posinf = info.emask | info.fmask
-    info.mostpos = info.posinf & ~(info.ubitmask << info.utagsize)
-    info.leastpos = (info.ubitmask << info.utagsize)
+    info.posinf = info.emask | info.fmask | info.efsizemask
+    info.mostpos = info.posinf & ~(info.ubitmask << 1)
+    info.leastpos = (info.ubitmask << 1)
     info.nan = info.posinf | info.ubitmask
 
     sgn = info.signbitmask
@@ -201,16 +195,18 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-const USPEC_FIELDS = ["exp", "frac", "signbit", "ubit"]
+const USPEC_FIELDS = ["signbit", "exp", "frac", "ubit", "esizesize", "fsizesize"]
 const USPEC_LENGTHS = map(length, USPEC_FIELDS)
 
-function Base.show{B,E}(io::IO, u::AbstractUnum{B,E})
+function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
   b = bits(u)
   println(io, "bits: ", b)
 
   nbits = numbits(typeof(u))
-  fsize = nbits - E - 2
-  flens = [E, fsize, 1, 1]
+  esize = 2^ESS
+  fsize = 2^FSS
+  unused = nbits - esize - fsize - ESS - FSS - 2
+  flens = [1, esize, fsize, 1, ESS, FSS]
   maxlens = map(max, flens, USPEC_LENGTHS)
 
   print(io, "| ")
@@ -218,7 +214,7 @@ function Base.show{B,E}(io::IO, u::AbstractUnum{B,E})
   for (i,l) in enumerate(flens)
     lpad, extra = divrem(maxlens[i]-l, 2)
     print(io, " "^lpad, b[pos:pos+l-1], " "^(lpad+extra), " | ")
-    pos += l
+    pos += (i == 1 ? 1+unused : l)
   end
 
   print(io, "\n| ")
