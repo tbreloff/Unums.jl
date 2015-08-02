@@ -7,8 +7,10 @@ Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
 
 # TODO: generate these
 getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
-|{U<:FixedUnum64}(u1::U, u2::U) = box(U, or_int(unbox(U,u1), unbox(U,u2)))
-<<{U<:FixedUnum64, I<:Integer}(u::U, i::I) = box(U, shl_int(unbox(U,u), unbox(I,i)))
+(~){U<:FixedUnum64}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
+(&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(<<){U<:FixedUnum64}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
 
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
@@ -19,11 +21,11 @@ function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
   
   UINT = getUINT(U)
   o = one(UINT)
-  println("$U $left $numones $UINT $o")
+  # println("$U $left $numones $UINT $o")
   x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
-  println(bits(x))
+  # println(bits(x))
   x -= ((o << (left-numones)) - o)
-  println(bits(x))
+  # println(bits(x))
   reinterpret(U, x)
 end
 
@@ -73,7 +75,7 @@ type UnumInfo{U<:AbstractUnum}
   nan::U       # this is "quiet NaN" from the book
   null::U      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
 
-  UnumInfo{U}(::Type{U}) = new()
+  UnumInfo() = new()
 end
 
 
@@ -82,10 +84,10 @@ const NUM_UNUMINFO_MASKS = 15
 
 function Base.show{T}(io::IO, info::UnumInfo{T})
   println("UnumInfo{$T}:")
-  for fn in fieldnames(info)[1:numints]
+  for fn in fieldnames(info)[1:NUM_UNUMINFO_INTS]
     println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
   end
-  for fn in fieldnames(info)[numints:end]
+  for fn in fieldnames(info)[NUM_UNUMINFO_INTS+1:end]
     println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
   end
 end
@@ -99,7 +101,10 @@ const unumConstCache = Dict{DataType, UnumInfo}()
 # expect this to be called from a generated function, so we're being passed type params
 function unumConstants(U::DataType)
   get!(unumConstCache, U) do
-    info = UnumInfo(U)
+    # info = UnumInfo(U)
+    info = UnumInfo{U}()
+
+    B, E = U.parameters
     info.base = B
     info.nbits = numbits(U)
     info.esize = E
@@ -134,7 +139,7 @@ function unumConstants(U::DataType)
     info.zero = reinterpret(U, zero(UINT))
     info.poszero = info.zero | info.ubitmask
     info.posinf = info.emask | info.fmask
-    info.mostpos = info.posinf - (info.ubitmask << info.utagsize)
+    info.mostpos = info.posinf & ~(info.ubitmask << info.utagsize)
     info.leastpos = (info.ubitmask << info.utagsize)
     info.nan = info.posinf | info.ubitmask
 
