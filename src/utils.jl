@@ -12,6 +12,7 @@ getINT{U<:FixedUnum64}(::Type{U}) = Int64
 (&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
 (|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
 (<<){U<:FixedUnum64}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
+# (==){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
 
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
@@ -230,21 +231,56 @@ function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
     print(io, " "^lpad, USPEC_FIELDS[i], " "^(lpad+extra), " | ")
     pos += l
   end
+
+  print(io, "\n| ")
+  pos = 1
+  vals = [isnegative(u) ? 1 : 0, exponent(u), significand(u), isapprox(u) ? 1 : 0, esize(u), fsize(u)]
+  for (i,l) in enumerate(USPEC_LENGTHS)
+    lpad, extra = divrem(maxlens[i]-l, 2)
+    print(io, " "^lpad, vals[i], " "^(lpad+extra), " | ")
+    pos += l
+  end
+  
 end
 
 
 # ---------------------------------------------------------------------------------------
 
+"exponent of the unum"
 @generated function Base.exponent{U<:AbstractUnum}(u::U)
   c = unumConstants(U)
   :(reinterpret($(c.INT), u & $(c.emask)) >> $(c.fpos))
 end
 
+"significand (fraction) of an unum"
 @generated function Base.significand{U<:AbstractUnum}(u::U)
   c = unumConstants(U)
   :(reinterpret($(c.INT), u & $(c.fmask)) >> $(c.ubitpos))
 end
 
+"Number of bits in the unum's exponent"
+@generated function esize{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.INT), u & $(c.esizemask)) >> $(c.fsizepos))
+end
+
+"Number of bits in the unum's significand (fraction)"
+@generated function fsize{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.INT), u & $(c.fsizemask)))
+end
+
+@generated function isnegative{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.UINT), u & $(c.signbitmask)) != zero($(c.UINT)))
+end
+
+ispositive(u::AbstractUnum) = !isnegative(u)
+
+@generated function Base.isapprox{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.UINT), u & $(c.ubitmask)) != zero($(c.UINT)))
+end
 
 # NOTE: these are not ideal conversions... just want to get a ballpark answer
 u2float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = u2float(Float64(B), ESS, FSS, exponent(u), significand(u))
