@@ -7,6 +7,7 @@ Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
 
 # TODO: generate these
 getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
+getINT{U<:FixedUnum64}(::Type{U}) = Int64
 (~){U<:FixedUnum64}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
 (&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
 (|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
@@ -52,6 +53,7 @@ type UnumInfo{U<:AbstractUnum}
   signbitmask::U
   emask::U
   fmask::U
+  efmask::U
   ubitmask::U
   esizemask::U
   fsizemask::U
@@ -70,12 +72,15 @@ type UnumInfo{U<:AbstractUnum}
   nan::U       # this is "quiet NaN" from the book
   null::U      # this is "signaling NaN" from the book... can maybe repurpose to replace Nullable
 
+  UINT::DataType
+  INT::DataType
+
   UnumInfo() = new()
 end
 
 
 const NUM_UNUMINFO_INTS = 13
-const NUM_UNUMINFO_MASKS = 19
+const NUM_UNUMINFO_MASKS = 20
 
 function Base.show{T}(io::IO, info::UnumInfo{T})
   println("UnumInfo{$T}:")
@@ -87,7 +92,6 @@ function Base.show{T}(io::IO, info::UnumInfo{T})
   end
 end
 
-# UnumInfo{T}(::Type{T}) = UnumInfo{T}(zeros(Int, NUM_UNUMINFO_INTS)..., zeros(T, NUM_UNUMINFO_MASKS)...)
 
 
 # keep a cache for given parameter sets so we don't keep rebuilding the constants
@@ -104,13 +108,14 @@ function unumConstants(U::DataType)
 
     info.base = B
     info.nbits = N
+    info.UINT = getUINT(U)
+    info.INT = getINT(U)
+
     info.esize = 2 ^ ESS
     info.fsize = 2 ^ FSS
     info.esizesize = ESS
     info.fsizesize = FSS
     info.utagsize = 1 + ESS + FSS
-    @assert info.esize > 0
-    @assert info.fsize > 0
 
     info.signbitpos = info.nbits
     info.fpos = info.utagsize + info.fsize
@@ -122,6 +127,7 @@ function unumConstants(U::DataType)
     info.signbitmask = createmask(U, info.signbitpos, 1)
     info.emask = createmask(U, info.epos, info.esize)
     info.fmask = createmask(U, info.fpos, info.fsize)
+    info.efmask = createmask(U, info.epos, info.esize + info.fsize)
     info.ubitmask = createmask(U, info.ubitpos, 1)
     info.esizemask = createmask(U, info.esizepos, ESS)
     info.fsizemask = createmask(U, info.fsizepos, FSS)
@@ -129,12 +135,11 @@ function unumConstants(U::DataType)
     info.utagmask = info.ubitmask | info.efsizemask
 
     # create constants zero, etc
-    UINT = getUINT(U)
-    info.zero = reinterpret(U, zero(UINT))
+    info.zero = reinterpret(U, zero(info.UINT))
     info.poszero = info.zero | info.ubitmask
     info.posinf = info.emask | info.fmask | info.efsizemask
-    info.mostpos = info.posinf & ~(info.ubitmask << 1)
     info.leastpos = (info.ubitmask << 1)
+    info.mostpos = info.posinf & ~info.leastpos
     info.nan = info.posinf | info.ubitmask
 
     sgn = info.signbitmask
@@ -200,6 +205,7 @@ const USPEC_LENGTHS = map(length, USPEC_FIELDS)
 
 function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
   b = bits(u)
+  # prinln(io, "value: ", u2float())
   println(io, "bits: ", b)
 
   nbits = numbits(typeof(u))
@@ -226,3 +232,29 @@ function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
   end
 end
 
+
+# ---------------------------------------------------------------------------------------
+
+@generated function Base.exponent{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.INT), u & $(c.emask)) >> $(c.fpos))
+end
+
+@generated function Base.significand{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(reinterpret($(c.INT), u & $(c.fmask)) >> $(c.ubitpos))
+end
+
+
+# NOTE: these are not ideal conversions... just want to get a ballpark answer
+u2float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = u2float(Float64(B), ESS, FSS, exponent(u), significand(u))
+
+function u2float(base, esize, fsize, e, f)
+  if e == 0
+    return base ^ (e - 2^(esize-1)) * f / (2^fsize)
+  else
+    return base ^ (e - 2^(esize-1) - 1) * (1 + (base-1) * f / (2^fsize))
+  end
+end
+
+mask64(x,y) = createmask(Unum64, x, y)

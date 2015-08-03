@@ -2,16 +2,10 @@ module Unums
 
 export
   AbstractUnum,
-  Unum,
-  DecimalUnum,
-  Unum16,
-  Unum32,
+  FixedUnum64,
+  BinaryUnum64,
   Unum64,
-  Unum128,
-  DecimalUnum16,
-  DecimalUnum32,
-  DecimalUnum64,
-  DecimalUnum128
+  mask64
 
 
 import Base: isapprox, isequal, isfinite, isinf, isinteger,

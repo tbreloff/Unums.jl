@@ -39,7 +39,6 @@ end
 # FSS is the "fraction size size"
 bitstype 64 FixedUnum64{B,ESS,FSS} <: AbstractUnum{B,ESS,FSS}
 typealias BinaryUnum64{ESS,FSS}   FixedUnum64{2,ESS,FSS}
-typealias DecimalUnum64{ESS,FSS}  FixedUnum64{10,ESS,FSS}
 typealias Unum64                  BinaryUnum64{4,5}
 
 # ---------------------------------------------------------------------------------------
