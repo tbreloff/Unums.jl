@@ -5,10 +5,13 @@ export
   FixedUnum64,
   BinaryUnum64,
   Unum64,
-  mask64
+  mask64,
+
+  isexact,
+  isinexact
 
 
-import Base: isapprox, isequal, isfinite, isinf, isinteger,
+import Base: isequal, isfinite, isinf, isinteger,
              isless, isnan, isnull, isnumber, isreal, issubnormal,
              typemin, typemax
 
@@ -16,6 +19,7 @@ import Base: isapprox, isequal, isfinite, isinf, isinteger,
 
 include("types.jl")
 include("utils.jl")
+include("ops.jl")
 include("convert.jl")
 
 # ---------------------------------------------------------------------------------------

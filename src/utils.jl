@@ -28,7 +28,7 @@ function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
   reinterpret(U, x)
 end
 
-
+mask64(left, numones) = createmask(Unum64, left, numones)
 
 # ---------------------------------------------------------------------------------------
 
@@ -246,51 +246,4 @@ end
 
 # ---------------------------------------------------------------------------------------
 
-"exponent of the unum"
-@generated function Base.exponent{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.emask)) >> $(c.fpos))
-end
 
-"significand (fraction) of an unum"
-@generated function Base.significand{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.fmask)) >> $(c.ubitpos))
-end
-
-"Number of bits in the unum's exponent"
-@generated function esize{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.esizemask)) >> $(c.fsizepos))
-end
-
-"Number of bits in the unum's significand (fraction)"
-@generated function fsize{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.fsizemask)))
-end
-
-@generated function isnegative{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.UINT), u & $(c.signbitmask)) != zero($(c.UINT)))
-end
-
-ispositive(u::AbstractUnum) = !isnegative(u)
-
-@generated function Base.isapprox{U<:AbstractUnum}(u::U)
-  c = unumConstants(U)
-  :(reinterpret($(c.UINT), u & $(c.ubitmask)) != zero($(c.UINT)))
-end
-
-# NOTE: these are not ideal conversions... just want to get a ballpark answer
-u2float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = u2float(Float64(B), ESS, FSS, exponent(u), significand(u))
-
-function u2float(base, esize, fsize, e, f)
-  if e == 0
-    return base ^ (e - 2^(esize-1)) * f / (2^fsize)
-  else
-    return base ^ (e - 2^(esize-1) - 1) * (1 + (base-1) * f / (2^fsize))
-  end
-end
-
-mask64(x,y) = createmask(Unum64, x, y)
