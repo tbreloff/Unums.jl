@@ -38,8 +38,8 @@ mask64(left, numones) = createmask(Unum64, left, numones)
 type UnumInfo{U<:AbstractUnum}
   base::Int
   nbits::Int
-  esize::Int
-  fsize::Int
+  maxesize::Int
+  maxfsize::Int
   esizesize::Int
   fsizesize::Int
   utagsize::Int
@@ -112,23 +112,23 @@ function unumConstants(U::DataType)
     info.UINT = getUINT(U)
     info.INT = getINT(U)
 
-    info.esize = 2 ^ ESS
-    info.fsize = 2 ^ FSS
+    info.maxesize = 2 ^ ESS
+    info.maxfsize = 2 ^ FSS
     info.esizesize = ESS
     info.fsizesize = FSS
     info.utagsize = 1 + ESS + FSS
 
     info.signbitpos = info.nbits
-    info.fpos = info.utagsize + info.fsize
-    info.epos = info.fpos + info.esize
+    info.fpos = info.utagsize + info.maxfsize
+    info.epos = info.fpos + info.maxesize
     info.ubitpos = info.utagsize
     info.esizepos = ESS + FSS
     info.fsizepos = FSS
 
     info.signbitmask = createmask(U, info.signbitpos, 1)
-    info.emask = createmask(U, info.epos, info.esize)
-    info.fmask = createmask(U, info.fpos, info.fsize)
-    info.efmask = createmask(U, info.epos, info.esize + info.fsize)
+    info.emask = createmask(U, info.epos, info.maxesize)
+    info.fmask = createmask(U, info.fpos, info.maxfsize)
+    info.efmask = createmask(U, info.epos, info.maxesize + info.maxfsize)
     info.ubitmask = createmask(U, info.ubitpos, 1)
     info.esizemask = createmask(U, info.esizepos, ESS)
     info.fsizemask = createmask(U, info.fsizepos, FSS)
@@ -210,10 +210,10 @@ function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
   println(io, "bits: ", b)
 
   nbits = numbits(typeof(u))
-  esize = 2^ESS
-  fsize = 2^FSS
-  unused = nbits - esize - fsize - ESS - FSS - 2
-  flens = [1, esize, fsize, 1, ESS, FSS]
+  maxesize = 2^ESS
+  maxfsize = 2^FSS
+  unused = nbits - maxesize - maxfsize - ESS - FSS - 2
+  flens = [1, maxesize, maxfsize, 1, ESS, FSS]
   maxlens = map(max, flens, USPEC_LENGTHS)
 
   print(io, "| ")
