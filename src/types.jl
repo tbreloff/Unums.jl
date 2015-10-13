@@ -23,7 +23,7 @@ end
 
 for op in [:+, :-, :*, :/, :(==), :<, :>, :<=, :>=, :isless, :isequal]
   @eval $op(u1::AbstractUnum, u2::AbstractUnum) = error("Operation not implemented for $u1 and $u2\!")
-  for t in [:Bool, :Integer, :FloatingPoint]
+  for t in [:Bool, :Integer, :AbstractFloat]
     @eval $op(u::AbstractUnum, r::$t) = error("Operation not implemented for Unum $u and ", $t, " $r\!")
     @eval $op(r::$t, u::AbstractUnum) = error("Operation not implemented for ", $t, " $r and Unum $u\!")
   end

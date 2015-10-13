@@ -88,7 +88,7 @@ function Base.show{T}(io::IO, info::UnumInfo{T})
   for fn in fieldnames(info)[1:NUM_UNUMINFO_INTS]
     println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
   end
-  for fn in fieldnames(info)[NUM_UNUMINFO_INTS+1:end]
+  for fn in fieldnames(info)[NUM_UNUMINFO_INTS+1:NUM_UNUMINFO_INTS+NUM_UNUMINFO_MASKS]
     println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
   end
 end
@@ -157,7 +157,7 @@ end
 # ---------------------------------------------------------------------------------------
 
 # # this stores some key sizes and masks for doing float conversions
-# type FloatInfo{F<:FloatingPoint, U<:AbstractUnum}
+# type FloatInfo{F<:AbstractFloat, U<:AbstractUnum}
 #   nbits::Int
 #   epos::Int
 #   fpos::Int
@@ -231,6 +231,7 @@ function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
     print(io, " "^lpad, USPEC_FIELDS[i], " "^(lpad+extra), " | ")
     pos += l
   end
+  return
 
   print(io, "\n| ")
   pos = 1

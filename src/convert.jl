@@ -7,7 +7,7 @@
 
 # # convert any floating point number to a unum
 # # lets worry about the base-2 case for now, then generalize later:
-# @generated function call{E,UINT, FLOAT<:FloatingPoint}(::Type{Unum{E,UINT}}, x::FLOAT)
+# @generated function call{E,UINT, FLOAT<:AbstractFloat}(::Type{Unum{E,UINT}}, x::FLOAT)
 #   B = 2
 #   c = unumConstants(B, E, UINT)
 #   f = FloatInfo(FLOAT)
@@ -68,18 +68,18 @@
 #     reinterpret(Float64, s | d + y)
 # end
 
-@generated function Base.convert{U<:AbstractUnum, I<:Unsigned}(::Type{U}, i::I)
-  c = unumConstants(U)
-  n = sizeof(i) * 8
-  println(c)
+# @generated function Base.convert{U<:AbstractUnum, I<:Unsigned}(::Type{U}, i::I)
+#   c = unumConstants(U)
+#   n = sizeof(i) * 8
+#   println(c)
 
-  quote
-    usedbits = $(n) - leading_zeros(i)
-    usedbits == 0 && return $(c.zero)
-    if usedbits <= $(c.fsize)
-      y = ((i %))
-  end
-end
+#   quote
+#     usedbits = $(n) - leading_zeros(i)
+#     usedbits == 0 && return $(c.zero)
+#     if usedbits <= $(c.fsize)
+#       y = ((i %))
+#   end
+# end
 
 # NOTE: these are not ideal conversions... just want to get a ballpark answer
 u2float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = u2float(Float64(B), ESS, FSS, exponent(u), significand(u))
