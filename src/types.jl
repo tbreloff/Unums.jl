@@ -41,6 +41,12 @@ bitstype 64 FixedUnum64{B,ESS,FSS} <: AbstractUnum{B,ESS,FSS}
 typealias BinaryUnum64{ESS,FSS}   FixedUnum64{2,ESS,FSS}
 typealias Unum64                  BinaryUnum64{4,5}
 
+
+
+bitstype 16 FixedUnum16{B,ESS,FSS} <: AbstractUnum{B,ESS,FSS}
+typealias BinaryUnum16{ESS,FSS}   FixedUnum16{2,ESS,FSS}
+typealias Unum16                  BinaryUnum16{1,3}  # note: could also be 2,2
+
 # ---------------------------------------------------------------------------------------
 
 # some helpful aliases

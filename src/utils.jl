@@ -5,15 +5,6 @@
 numbits{U}(::Type{U}) = sizeof(U) * 8
 Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
 
-# TODO: generate these
-getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
-getINT{U<:FixedUnum64}(::Type{U}) = Int64
-(~){U<:FixedUnum64}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
-(&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(<<){U<:FixedUnum64}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
-# (==){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
 function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
@@ -28,7 +19,31 @@ function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
   reinterpret(U, x)
 end
 
-mask64(left, numones) = createmask(Unum64, left, numones)
+# ---------------------------------------------------------------------------------------
+
+# TODO: generate these
+getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
+getINT{U<:FixedUnum64}(::Type{U}) = Int64
+(~){U<:FixedUnum64}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
+(&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(<<){U<:FixedUnum64}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
+# (==){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+
+mask64(left, numones=1) = createmask(Unum64, left, numones)
+
+# ---------------------------------------------------------------------------------------
+
+# TODO: generate these
+getUINT{U<:FixedUnum16}(::Type{U}) = UInt16
+getINT{U<:FixedUnum16}(::Type{U}) = Int16
+(~){U<:FixedUnum16}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
+(&){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(|){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+(<<){U<:FixedUnum16}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
+# (==){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+
+mask16(left, numones=1) = createmask(Unum16, left, numones)
 
 # ---------------------------------------------------------------------------------------
 
@@ -207,7 +222,8 @@ const USPEC_LENGTHS = map(length, USPEC_FIELDS)
 function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
   b = bits(u)
   # prinln(io, "value: ", u2float())
-  println(io, "bits: ", b)
+  println(io, "bits : ", b)
+  println(io, "float: ", float(u), isexact(u) ? "" : "...")
 
   nbits = numbits(typeof(u))
   maxesize = 2^ESS
@@ -231,20 +247,19 @@ function Base.show{B,ESS,FSS}(io::IO, u::AbstractUnum{B,ESS,FSS})
     print(io, " "^lpad, USPEC_FIELDS[i], " "^(lpad+extra), " | ")
     pos += l
   end
-  return
 
-  print(io, "\n| ")
-  pos = 1
-  vals = [isnegative(u) ? 1 : 0, exponent(u), significand(u), isapprox(u) ? 1 : 0, esize(u), fsize(u)]
-  for (i,l) in enumerate(USPEC_LENGTHS)
-    lpad, extra = divrem(maxlens[i]-l, 2)
-    print(io, " "^lpad, vals[i], " "^(lpad+extra), " | ")
-    pos += l
-  end
+  # return
+
+  # print(io, "\n| ")
+  # pos = 1
+  # vals = [isnegative(u) ? 1 : 0, exponent(u), significand(u), isapprox(u) ? 1 : 0, esize(u), fsize(u)]
+  # for (i,l) in enumerate(USPEC_LENGTHS)
+  #   lpad, extra = divrem(maxlens[i]-l, 2)
+  #   print(io, " "^lpad, vals[i], " "^(lpad+extra), " | ")
+  #   pos += l
+  # end
   
 end
 
 
 # ---------------------------------------------------------------------------------------
-
-

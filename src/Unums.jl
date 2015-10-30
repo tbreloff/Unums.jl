@@ -2,13 +2,21 @@ module Unums
 
 export
   AbstractUnum,
+
   FixedUnum64,
   BinaryUnum64,
   Unum64,
   mask64,
 
+  FixedUnum16,
+  BinaryUnum16,
+  Unum16,
+  mask16,
+
   isexact,
-  isinexact
+  isinexact,
+  
+  createmask
 
 
 import Base: isequal, isfinite, isinf, isinteger,

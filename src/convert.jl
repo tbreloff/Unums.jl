@@ -68,26 +68,54 @@
 #     reinterpret(Float64, s | d + y)
 # end
 
-# @generated function Base.convert{U<:AbstractUnum, I<:Unsigned}(::Type{U}, i::I)
-#   c = unumConstants(U)
-#   n = sizeof(i) * 8
-#   println(c)
+# convert an unsigned integer to a unum
+@generated function Base.convert{U<:AbstractUnum, I<:Unsigned}(::Type{U}, i::I)
+  c = unumConstants(U)
+  n = sizeof(i) * 8
+  println(c)
 
-#   quote
-#     usedbits = $(n) - leading_zeros(i)
-#     usedbits == 0 && return $(c.zero)
-#     if usedbits <= $(c.fsize)
-#       y = ((i %))
-#   end
-# end
+  quote
+    i == 0 && return $(c.zero)
+
+    usedbits = $(n) - leading_zeros(i)
+
+    # a
+    $(c.esizesize == 0 ? :(if i == 1; return ??; end) : :())
+
+
+    # if usedbits <= $(c.fsize)
+    #   # y = ((i % ))
+    # end
+  end
+end
 
 # NOTE: these are not ideal conversions... just want to get a ballpark answer
-u2float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = u2float(Float64(B), ESS, FSS, exponent(u), significand(u))
-
-function u2float(base, esize, fsize, e, f)
+function Base.float(base, esize, fsize, e, f)
   if e == 0
     return base ^ (e - 2^(esize-1)) * f / (2^fsize)
   else
     return base ^ (e - 2^(esize-1) - 1) * (1 + (base-1) * f / (2^fsize))
   end
 end
+Base.float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = (isnegative(u) ? -1 : 1) * float(Float64(B), esize(u), fsize(u), exponent(u), significand(u))
+
+
+# build a unum from the component values
+@generated function call{U<:AbstractUnum}(::Type{U}, isneg::Bool, ubit::Bool, es::Int, fs::Int, e::Int, f::Int)
+  c = unumConstants(U)
+  quote
+    # shift values into the correct section, right to left
+    u = $(c.UINT)(fs - 1)
+    u = u | ($(c.UINT)(es - 1) << $(c.fsizepos))
+    if ubit
+      u = u | (one($(c.UINT)) << $(c.esizepos))
+    end
+    u = u | ($(c.UINT)(f) << $(c.ubitpos))
+    u = u | ($(c.UINT)(e) << $(c.fpos))
+    if isneg
+      u = u | (one($(c.UINT)) << $(c.epos))
+    end
+    reinterpret(U,u)
+  end
+end
+

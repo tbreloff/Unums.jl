@@ -22,13 +22,13 @@ end
 "Number of bits in the unum's exponent"
 @generated function esize{U<:AbstractUnum}(u::U)
   c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.esizemask)) >> $(c.fsizepos))
+  :(1 + reinterpret($(c.INT), u & $(c.esizemask)) >> $(c.fsizepos))
 end
 
 "Number of bits in the unum's significand (fraction)"
 @generated function fsize{U<:AbstractUnum}(u::U)
   c = unumConstants(U)
-  :(reinterpret($(c.INT), u & $(c.fsizemask)))
+  :(1 + reinterpret($(c.INT), u & $(c.fsizemask)))
 end
 
 @generated function isnegative{U<:AbstractUnum}(u::U)
@@ -54,6 +54,12 @@ end
   c = unumConstants(U)
   :(c.posinf)
 end
+
+@generated function maxubits{U<:AbstractUnum}(::Type{U})
+  c = unumConstants(U)
+  :(2 + $(c.esizesize) + $(c.fsizesize) + 2^$(c.esizesize) + 2^$(c.fsizesize))
+end
+
 
 # for func in [:isnan, :isnull, :isinf, :isfinite, :isposinf, :isneginf,
 #               :isnegative, :iszero, :ispositive, :-, :isinteger, :issubnormal]
