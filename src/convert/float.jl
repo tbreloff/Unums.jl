@@ -49,33 +49,36 @@ end
 ispositive(x::AbstractFloat) = x >= 0.
 isnegative(x::AbstractFloat) = x < 0.
 
-# keep a cache for given parameter sets so we don't keep rebuilding the constants
-const floatConstCache = Dict{DataType, FloatInfo}()
-
-const _f2uintMap = Dict(
-    Float16   => UInt16,
-    Float32   => UInt32,
-    Float64   => UInt64,
-    Float128  => UInt128,
+const _floatinfo = Dict(
+    Float16 => (UInt16, 5,  10),
+    Float32 => (UInt32, 8,  23),
+    Float64 => (UInt64, 11, 52),
   )
 
-const 
+# keep a cache for given parameter sets so we don't keep rebuilding the constants
+const floatConstCache = Dict{DataType, FloatInfo}()
 
 # expect this to be called from a generated function, so we're being passed type params
 function floatConstants(F::DataType)
   get!(floatConstCache, F) do
-    info = FloatInfo{F}()
+    I, ES, FS = _floatinfo[F]
+    info = FloatInfo{F,I}()
     info.nbits = numbits(F)
-    I = _f2uintMap[F]
-
-
-
-    info.base = B
-    info.nbits = N
-    info.UINT = getUINT(U)
-    info.INT = getINT(U)
-
+    info.esize = ES
+    info.fsize = FS
+    info.emask = createmask(I, ES,    ES)
+    info.fmask = createmask(I, ES+FS, FS)
     info
+  end
+end
+
+function Base.show{F,I}(io::IO, info::FloatInfo{F,I})
+  println("FloatInfo{$F,$I}:")
+  for fn in fieldnames(info)[1:3]
+    println(@sprintf("  %8s %6d", fn, getfield(info, fn)))
+  end
+  for fn in fieldnames(info)[4:end]
+    println(@sprintf("  %8s %s", fn, bits(getfield(info, fn))))
   end
 end
 
