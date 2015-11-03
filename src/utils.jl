@@ -7,7 +7,7 @@ Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
 
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
-function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
+function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int = 1)
   # @assert numones >= 0
   # @assert left >= numones
   # @assert left <= numbits(U)
@@ -21,13 +21,13 @@ function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
 end
 
 
-function createmask{UINT<:Unsigned}(::Type{UINT}, left::Int, numones::Int)
+function createmask{I<:Integer}(::Type{I}, left::Int, numones::Int = 1)
   @assert numones >= 0
   @assert left >= numones
-  @assert left <= numbits(UINT)
+  @assert left <= numbits(I)
   
-  o = one(UINT)
-  x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
+  o = one(I)
+  x = (left == numbits(I) ? typemax(I) : (o << left) - o)
   x -= ((o << (left-numones)) - o)
   x
 end
@@ -35,28 +35,45 @@ end
 # ---------------------------------------------------------------------------------------
 
 # TODO: generate these
-getUINT{U<:FixedUnum64}(::Type{U}) = UInt64
-getINT{U<:FixedUnum64}(::Type{U}) = Int64
-(~){U<:FixedUnum64}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
-(&){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(|){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(<<){U<:FixedUnum64}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
-# (==){U<:FixedUnum64}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+getUINT{U<:FixedUnum64}(::Type{U})  = UInt64
+getINT{U<:FixedUnum64}(::Type{U})   = Int64
+(~){U<:FixedUnum64}(u::U)           = box(U, Base.not_int(unbox(U,u)))
+(&){U<:FixedUnum64}(u1::U, u2::U)   = box(U, Base.and_int(unbox(U,u1), unbox(U,u2)))
+(|){U<:FixedUnum64}(u1::U, u2::U)   = box(U, Base.or_int(unbox(U,u1), unbox(U,u2)))
+(<<){U<:FixedUnum64}(u::U, i::Int)  = box(U, Base.shl_int(unbox(U,u), unbox(Int,i)))
+# (==){U<:FixedUnum64}(u1::U, u2::U) = box(U, Base.and_int(unbox(U,u1), unbox(U,u2)))
 
 mask64(left, numones=1) = createmask(Unum64, left, numones)
 
 # ---------------------------------------------------------------------------------------
 
 # TODO: generate these
-getUINT{U<:FixedUnum16}(::Type{U}) = UInt16
-getINT{U<:FixedUnum16}(::Type{U}) = Int16
-(~){U<:FixedUnum16}(u::U) = Base.box(U, Base.not_int(Base.unbox(U,u)))
-(&){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(|){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.or_int(Base.unbox(U,u1), Base.unbox(U,u2)))
-(<<){U<:FixedUnum16}(u::U, i::Int) = Base.box(U, Base.shl_int(Base.unbox(U,u), Base.unbox(Int,i)))
-# (==){U<:FixedUnum16}(u1::U, u2::U) = Base.box(U, Base.and_int(Base.unbox(U,u1), Base.unbox(U,u2)))
+getUINT{U<:FixedUnum16}(::Type{U})  = UInt16
+getINT{U<:FixedUnum16}(::Type{U})   = Int16
+(~){U<:FixedUnum16}(u::U)           = box(U, Base.not_int(unbox(U,u)))
+(&){U<:FixedUnum16}(u1::U, u2::U)   = box(U, Base.and_int(unbox(U,u1), unbox(U,u2)))
+(|){U<:FixedUnum16}(u1::U, u2::U)   = box(U, Base.or_int(unbox(U,u1), unbox(U,u2)))
+(<<){U<:FixedUnum16}(u::U, i::Int)  = box(U, Base.shl_int(unbox(U,u), unbox(Int,i)))
+# (==){U<:FixedUnum16}(u1::U, u2::U) = box(U, Base.and_int(unbox(U,u1), unbox(U,u2)))
 
 mask16(left, numones=1) = createmask(Unum16, left, numones)
+
+# ---------------------------------------------------------------------------------------
+
+@generated function Base.leading_zeros{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(Int(reinterpret($(c.UINT), box(U, Base.ctlz_int(unbox(U,u))))))
+end
+
+@generated function Base.trailing_zeros{U<:AbstractUnum}(u::U)
+  c = unumConstants(U)
+  :(Int(reinterpret($(c.UINT), box(U, Base.cttz_int(unbox(U,u))))))
+end
+
+# Base.leading_zeros{U<:FixedUnum16}(u::U) = Int(reinterpret())
+        # count_ones(x::$T)     = Int(box($T,ctpop_int(unbox($T,x))))
+        # leading_zeros(x::$T)  = Int(box($T,ctlz_int(unbox($T,x))))
+        # trailing_zeros(x::$T) = Int(box($T,cttz_int(unbox($T,x))))
 
 # ---------------------------------------------------------------------------------------
 
