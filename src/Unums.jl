@@ -30,7 +30,8 @@ import Base: +, -, *, /, ==, <, >, <=, >=, !, &, |, <<, ~
 include("types.jl")
 include("utils.jl")
 include("ops.jl")
-include("convert.jl")
+include("convert/float.jl")
+# include("convert/int.jl")
 
 # ---------------------------------------------------------------------------------------
 

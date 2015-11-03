@@ -8,15 +8,28 @@ Base.bits{U<:AbstractUnum}(u::U) = bin(reinterpret(getUINT(U), u), numbits(U))
 # helper function to create a bit mask for Unsigned int UINT, where:
 #   there are "numones" 1's in the bits starting at "left", and 0's otherwise
 function createmask{U<:AbstractUnum}(::Type{U}, left::Int, numones::Int)
-  @assert numones >= 0
-  @assert left >= numones
-  @assert left <= numbits(U)
+  # @assert numones >= 0
+  # @assert left >= numones
+  # @assert left <= numbits(U)
   
   UINT = getUINT(U)
+  # o = one(UINT)
+  # x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
+  # x -= ((o << (left-numones)) - o)
+  x = createmask(UINT, left, numones)
+  reinterpret(U, x)
+end
+
+
+function createmask{UINT<:Unsigned}(::Type{UINT}, left::Int, numones::Int)
+  @assert numones >= 0
+  @assert left >= numones
+  @assert left <= numbits(UINT)
+  
   o = one(UINT)
   x = (left == numbits(UINT) ? typemax(UINT) : (o << left) - o)
   x -= ((o << (left-numones)) - o)
-  reinterpret(U, x)
+  x
 end
 
 # ---------------------------------------------------------------------------------------
@@ -168,51 +181,6 @@ function unumConstants(U::DataType)
     info
   end
 end
-
-# ---------------------------------------------------------------------------------------
-
-# # this stores some key sizes and masks for doing float conversions
-# type FloatInfo{F<:AbstractFloat, U<:AbstractUnum}
-#   nbits::Int
-#   epos::Int
-#   fpos::Int
-#   esize::Int
-#   fsize::Int
-#   signbitmask::U
-#   emask::U
-#   fmask::U
-#   fType::DataType
-#   uType::DataType
-# end
-
-# function Base.show{F,U}(io::IO, info::FloatInfo{F,U})
-#   println("FloatInfo{$F,$U}:")
-#   for fn in fieldnames(info)[1:5]
-#     println(@sprintf("  %15s %6d", fn, getfield(info, fn)))
-#   end
-#   for fn in fieldnames(info)[6:8]
-#     println(@sprintf("  %15s %s", fn, bits(getfield(info, fn))))
-#   end
-# end
-
-# FloatInfo(::Type{Float16}) = FloatInfo(Float16, UInt16, 16, 5)
-# FloatInfo(::Type{Float32}) = FloatInfo(Float32, UInt32, 32, 8)
-# FloatInfo(::Type{Float64}) = FloatInfo(Float64, UInt64, 64, 11)
-# # FloatInfo(::Type{Float128}) = FloatInfo(Float128, UInt128, 128, 15, 113)
-
-# function FloatInfo{F,U}(::Type{F}, ::Type{U}, nbits::Int, esize::Int)
-#   fsize = nbits - esize - 1
-#   FloatInfo{F,U}(nbits,
-#                     nbits-1,
-#                     fsize,
-#                     esize,
-#                     fsize,
-#                     createmask(U, nbits, 1),
-#                     createmask(U, nbits-1, esize),
-#                     createmask(U, fsize, fsize),
-#                     F,
-#                     U)
-# end
 
 # ---------------------------------------------------------------------------------------
 

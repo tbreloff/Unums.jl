@@ -49,6 +49,25 @@ typealias Unum16                  BinaryUnum16{1,3}  # note: could also be 2,2
 
 # ---------------------------------------------------------------------------------------
 
+# build a unum from the component values
+@generated function call{U<:AbstractUnum}(::Type{U}, isneg::Bool, ubit::Bool, es::Int, fs::Int, e::Int, f::Int)
+  c = unumConstants(U)
+  quote
+    # shift values into the correct section, right to left
+    u = $(c.UINT)(fs - 1)
+    u = u | ($(c.UINT)(es - 1) << $(c.fsizepos))
+    if ubit
+      u = u | (one($(c.UINT)) << $(c.esizepos))
+    end
+    u = u | ($(c.UINT)(f) << $(c.ubitpos))
+    u = u | ($(c.UINT)(e) << $(c.fpos))
+    if isneg
+      u = u | (one($(c.UINT)) << $(c.epos))
+    end
+    reinterpret(U,u)
+  end
+end
+
 # some helpful aliases
 
 
