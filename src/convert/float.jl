@@ -44,6 +44,8 @@ type FloatInfo{F<:AbstractFloat, I<:Integer}
   emask::I
   fmask::I
   smask::I
+  UINT::DataType
+  INT::DataType
   FloatInfo() = new()
 end
 
@@ -51,9 +53,9 @@ ispositive(x::AbstractFloat) = x >= 0.
 isnegative(x::AbstractFloat) = x < 0.
 
 const _floatinfo = Dict(
-    Float16 => (Int16, 5,  10),
-    Float32 => (Int32, 8,  23),
-    Float64 => (Int64, 11, 52),
+    Float16 => (UInt16, Int16, 5,  10),
+    Float32 => (UInt32, Int32, 8,  23),
+    Float64 => (UInt64, Int64, 11, 52),
   )
 
 # keep a cache for given parameter sets so we don't keep rebuilding the constants
@@ -62,24 +64,26 @@ const floatConstCache = Dict{DataType, FloatInfo}()
 # expect this to be called from a generated function, so we're being passed type params
 function floatConstants(F::DataType)
   get!(floatConstCache, F) do
-    I, ES, FS = _floatinfo[F]
-    info = FloatInfo{F,I}()
+    UINT, INT, ES, FS = _floatinfo[F]
+    info = FloatInfo{F,INT}()
     info.nbits = numbits(F)
     info.esize = ES
     info.fsize = FS
-    info.fmask = createmask(I, FS,    FS)
-    info.emask = createmask(I, FS+ES, ES)
-    info.smask = createmask(I, info.nbits)
+    info.fmask = createmask(INT, FS,    FS)
+    info.emask = createmask(INT, FS+ES, ES)
+    info.smask = createmask(INT, info.nbits)
+    info.UINT = UINT
+    info.INT = INT
     info
   end
 end
 
-function Base.show{F,I}(io::IO, info::FloatInfo{F,I})
-  println("FloatInfo{$F,$I}:")
+function Base.show{F,INT}(io::IO, info::FloatInfo{F,INT})
+  println("FloatInfo{$F,$INT}:")
   for fn in fieldnames(info)[1:3]
     println(@sprintf("  %8s %6d", fn, getfield(info, fn)))
   end
-  for fn in fieldnames(info)[4:end]
+  for fn in fieldnames(info)[4:end-2]
     println(@sprintf("  %8s %s", fn, bits(getfield(info, fn))))
   end
 end
@@ -96,6 +100,10 @@ function Base.float(base, esize, fsize, e, f)
 end
 Base.float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = (isnegative(u) ? -1 : 1) * float(Float64(B), esize(u), fsize(u), exponent(u), significand(u))
 
+# ----------------------------------------------------------------
+
+@generated function Base.convert{U<:AbstractUnum, F<:AbstractFloat}(::Type{F}, u::U)
+end
 
 # ----------------------------------------------------------------
 
@@ -118,7 +126,6 @@ Base.float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = (isnegative(u) ? -1 : 1) * f
     # nan, inf or zero
     isnan(x) && return $(c.nan)
     isinf(x) && return x<0.0 ? $(c.neginf) : $(c.posinf)
-    x == 0.0 && return $(c.zero)
 
     # #convert the floating point x to its integer equivalent
     # I = fp.intequiv                 #the integer type of the same width
@@ -129,8 +136,10 @@ Base.float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = (isnegative(u) ? -1 : 1) * f
     # _emin = -(_ebias) + 1           #minimum exponent
 
     # exponent bias and minimum
-    ebias = 1 << ($(fc.fsize) - 1) - 1
-    emin = -ebias + 1
+    # ebias = 1 << ($(fc.fsize) - 1) - 1
+    ebias = $(createmask(c.INT, fc.fsize-1, fc.fsize-1))
+    # emin = -ebias + 1
+    # TODO: emin can be hardcoded
 
     # ibits = uint64(reinterpret(I, x)[1])
 
@@ -140,6 +149,7 @@ Base.float{B,ESS,FSS}(u::AbstractUnum{B,ESS,FSS}) = (isnegative(u) ? -1 : 1) * f
     # fraction = ibits & mask(_fsize) << (64 - _fsize)
     # #make some changes to the data for subnormal numbers.
     # (x == 0) && return zero(Unum{ESS,FSS})
+    x == 0.0 && return $(c.zero)
 
 
     # #grab the sign
