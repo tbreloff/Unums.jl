@@ -1,3 +1,5 @@
+### Note: this repo is mostly abandoned. It is not complete or usable in any way. See: https://github.com/JuliaComputing/Unums.jl
+
 # Unums
 
 [![Build Status](https://travis-ci.org/tbreloff/Unums.jl.svg?branch=master)](https://travis-ci.org/tbreloff/Unums.jl)
